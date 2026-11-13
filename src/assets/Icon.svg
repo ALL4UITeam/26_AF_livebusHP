@@ -1,0 +1,8 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="150" height="150" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon">
+<mask id="stroke0_0_4" fill="white">
+<path d="M75 5C80.6 46.0667 103.933 69.4 145 75C103.933 80.6 80.6 103.933 75 145C69.4 103.933 46.0667 80.6 5 75C46.0667 69.4 69.4 46.0667 75 5Z"/>
+</mask>
+<path id="Vector" d="M75 5C80.6 46.0667 103.933 69.4 145 75C103.933 80.6 80.6 103.933 75 145C69.4 103.933 46.0667 80.6 5 75C46.0667 69.4 69.4 46.0667 75 5Z" stroke-width="20" stroke-miterlimit="2" stroke-linecap="square" stroke="#033ECD" mask="url(#stroke0_0_4)"/>
+</g>
+</svg>

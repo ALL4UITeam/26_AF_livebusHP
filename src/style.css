@@ -2,7 +2,7 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: #05070c;
+  background: #000000;
   overflow: hidden;
 }
 #app {
@@ -15,3 +15,78 @@ body {
   height: 100%;
   touch-action: none;
 }
+.portal { color:white; font-family:Freesentation,"Malgun Gothic",sans-serif; position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+.portal button { background:none; border:0; padding:0; color:inherit; cursor:pointer; pointer-events:auto; }
+.portal-header { height:6.48%; padding:0 6.25%; display:flex; align-items:center; justify-content:space-between; }
+.brand img { display:block; width:clamp(85px,6.1vw,117px); }
+.portal nav { display:flex; gap:3.125vw; font:500 clamp(11px,.84vw,16px)/1.4 "DM Sans",Arial,sans-serif; }
+.headline { position:absolute; top:37.13%; left:-5vw; font:700 7.3vw/1.3 "Termina Test",Arial,sans-serif; letter-spacing:-.073vw; }
+.ticker { display:flex; width:max-content; animation:marquee 32s linear infinite; }
+.ticker span { display:flex; gap:1.56vw; padding-right:1.56vw; align-items:center; white-space:nowrap; }
+.ticker img { width:7.81vw; }
+@keyframes marquee { to { transform:translateX(-50%); } }
+.intro-copy { position:absolute; top:70.18%; left:6.25%; width:18%; }
+.intro-copy h1 { margin:0; width:max-content; white-space:nowrap; font-size:clamp(16px,1.51vw,29px); line-height:1.5; letter-spacing:-.05em; }
+.intro-copy p { font-size:clamp(11px,.78vw,15px); line-height:1.6; margin:.84vw 0 0; letter-spacing:-.045em; }
+.scroll-next { position:absolute; left:50%; bottom:2.75%; transform:translateX(-50%); display:grid; justify-items:center; font:700 clamp(11px,.84vw,16px)/1.3 Paperlogy,Arial,sans-serif; opacity:.6; }
+.scroll-next img { width:clamp(28px,2.6vw,50px); }
+.technology { position:absolute; left:6.25%; top:44.45%; transform:translateY(-50%); color:#fff; }
+.technology h2 { margin:0; font-size:clamp(23px,3.65vw,70px); line-height:1.6; font-weight:600; }
+/* 한 줄씩: 새로 켜지는 줄만 제자리에서 0 → 100%, 켜진 줄은 흰색 100% 유지. 끌 때는 마지막 줄부터 */
+.tech-line { display:block; opacity:0; transition:opacity .7s cubic-bezier(.33,0,.2,1); }
+.tech-line.is-on { opacity:1; }
+/* Technology 에 들어가면 첫 화면 요소(헤더·티커·소개 문구·SCROLL)는 비켜 줌, 0 단계로 돌아오면 다시 보임 */
+.portal > :not(.technology) { transition:opacity .6s ease, visibility 0s linear 0s; }
+body[data-tech]:not([data-tech="0"]) .portal > :not(.technology) { opacity:0; visibility:hidden; transition:opacity .6s ease, visibility 0s linear .6s; }
+
+/* ── 첫 로드 한 번 ──
+   index.html 인라인 CSS 가 첫 페인트부터 숨겨 두고(intro-pending), main.js 가 구체 첫 프레임 뒤 intro-play 를 붙인다.
+   모든 애니메이션은 fill both → 시작 전에도 숨은 상태, 끝나면 제자리. SCROLL 애니메이션이 끝나면 두 클래스를 모두 뗀다.
+   0.10s 헤더가 위에서 제자리로
+   0.40s 티커 '지지직': 얇은 가로 조각(.ticker-slice, main.js 가 복제)이 한두 번 어긋났다 맞춰지고 사라짐 → 가로 흐름 그대로
+   1.05s 소개 제목이 제자리에서 위부터 부드럽게 드러남
+   1.60s 본문이 한 박자 뒤에 흐림 → 선명
+   2.15s SCROLL */
+.intro-play .portal-header { animation:intro-down .8s cubic-bezier(.22,.61,.36,1) .1s both; }
+.intro-play .headline { animation:ticker-flicker .55s steps(1,end) .4s both; }
+.intro-play .scroll-next { animation:intro-scroll .7s ease 2.15s both; }
+@keyframes intro-scroll { from { opacity:0; } to { opacity:.6; } }
+.ticker-slice { position:absolute; top:0; left:0; pointer-events:none; color:#e9fbff; text-shadow:-2px 0 rgba(56,214,255,.75); opacity:0; }
+.ticker-slice-a { animation:marquee 32s linear infinite, ticker-slice-a .55s steps(1,end) .4s both; }
+.ticker-slice-b { animation:marquee 32s linear infinite, ticker-slice-b .55s steps(1,end) .4s both; }
+@keyframes ticker-flicker { 0% { opacity:0; } 8% { opacity:.9; } 16% { opacity:.35; } 26%,100% { opacity:1; } }
+@keyframes ticker-slice-a {
+  0% { opacity:0; }
+  10% { opacity:1; clip-path:inset(30% 0 57%); translate:-14px 0; }
+  28% { opacity:1; clip-path:inset(30% 0 57%); translate:7px 0; }
+  44% { opacity:1; clip-path:inset(64% 0 25%); translate:-5px 0; }
+  58%,100% { opacity:0; translate:0 0; }
+}
+@keyframes ticker-slice-b {
+  0%,14% { opacity:0; }
+  18% { opacity:1; clip-path:inset(56% 0 32%); translate:12px 0; }
+  34% { opacity:1; clip-path:inset(56% 0 32%); translate:-4px 0; }
+  48% { opacity:1; clip-path:inset(16% 0 72%); translate:3px 0; }
+  62%,100% { opacity:0; translate:0 0; }
+}
+.intro-play .intro-copy h1 {
+  -webkit-mask-image:linear-gradient(to bottom,#000 40%,transparent 60%); mask-image:linear-gradient(to bottom,#000 40%,transparent 60%);
+  -webkit-mask-size:100% 250%; mask-size:100% 250%; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  animation:copy-reveal 1s cubic-bezier(.25,.6,.3,1) 1.05s both;
+}
+.intro-play .intro-copy p { animation:copy-sharpen .8s ease 1.6s both; }
+@keyframes copy-reveal { from { -webkit-mask-position:0 100%; mask-position:0 100%; } to { -webkit-mask-position:0 0; mask-position:0 0; } }
+@keyframes copy-sharpen { from { opacity:0; filter:blur(3px); } to { opacity:1; filter:blur(0); } }
+@keyframes intro-down { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:none; } }
+@media (max-width:700px) {
+  .portal-header { height:60px; padding:0 5%; }
+  .portal nav { gap:2vw; font-size:10px; }
+  .intro-copy { width:87%; top:auto; bottom:12%; }
+  .intro-copy p { max-width:38em; }
+  .headline { top:43%; font-size:11vw; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .ticker, .intro-play .headline { animation:none; }
+  .tech-line { transition-duration:.2s; }
+}
+@keyframes intro-fade { from { opacity:0; } to { opacity:1; } }

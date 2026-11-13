@@ -4,9 +4,45 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>LIVEBUS · Particle Bus</title>
+    <!-- 첫 로드: 첫 페인트부터 UI 를 숨겨 둔다. 이 CSS 는 style.css(스크립트가 불러옴)보다 먼저 적용돼야 해서 여기 인라인으로 둔다.
+         main.js 가 구체 첫 프레임 뒤에 intro-play 로 순서대로 보여 주고, 실패하면 intro-pending 을 떼서 바로 읽을 수 있게 한다.
+         스크립트가 아예 실행되지 않으면(JS 꺼짐) 클래스가 붙지 않으므로 그대로 보인다. 고정 타이머로 먼저 드러내지 않는다. -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        root.classList.add('intro-pending');
+        // 실패하면 바로 읽을 수 있게: 스크립트·스타일 파일 로드 실패, 또는 시작 전에 처리되지 않은 오류
+        function reveal() { root.classList.remove('intro-pending', 'intro-play'); }
+        addEventListener('error', function (e) { var t = e.target; if ((t === window || t.tagName === 'SCRIPT' || t.tagName === 'LINK') && !root.classList.contains('intro-play')) reveal(); }, true);
+        addEventListener('unhandledrejection', function () { if (!root.classList.contains('intro-play')) reveal(); });
+      })();
+    </script>
+    <style>
+      html, body { background:#000; }
+      .intro-pending:not(.intro-play) .portal > :not(.technology) { opacity:0 !important; }
+    </style>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
+    <main class="portal">
+      <header class="portal-header">
+        <button class="brand" aria-label="처음으로"><img src="/src/assets/H1.svg" alt="LIVEBUS"></button>
+        <nav aria-label="주 메뉴"><span>PRODUCTS</span><span>PRICING</span><span>COMMUNITY</span><span>CONTACT</span></nav>
+      </header>
+      <div class="headline" aria-label="AILIVEBUS, eBIT · BIS · BMS">
+        <div class="ticker" aria-hidden="true">
+          <span>AILIVEBUS, eBIT · BIS · BMS <img src="/src/assets/Icon.svg" alt=""></span>
+          <span>AILIVEBUS, eBIT · BIS · BMS <img src="/src/assets/Icon.svg" alt=""></span>
+        </div>
+      </div>
+      <article class="intro-copy">
+        <h1>AI가 만드는 정확한 버스 도착정보<br>초정밀·친환경 AI 버스정보 솔루션</h1>
+        <p>초정밀측위 기술로 버스 위치를 cm·초 단위로 수집하고, AI 기반 도착예측 기술을 통해 정류장에 정확한 버스 도착정보를 제공합니다. 여기에 태양광 ePaper 기술을 결합하여 사람과 환경을 생각하는 차세대 클라우드 기반 구독형 버스정보 및 운영관리 통합솔루션입니다.</p>
+      </article>
+      <button class="scroll-next" aria-label="Core Technology 보기">SCROLL<img src="/src/assets/ChevronDown.svg" alt=""></button>
+      <section class="technology" aria-live="polite"><h2><span class="tech-line">Core Technology·초정밀측위×AI</span><span class="tech-line">국토부 도착정보 성능평가 최상급,</span><span class="tech-line">타 지자체 98·99% 검증</span></h2></section>
+    </main>
+    <!-- 첫 화면: 구체 → 버스 → 정류장 → 도로 루프 + Core Technology (src/hero/) -->
+    <script type="module" src="/src/hero/main.js"></script>
   </body>
 </html>
