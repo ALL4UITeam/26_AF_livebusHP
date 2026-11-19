@@ -1,21 +1,11 @@
 # LIVEBUS 메인 — 첫 화면 파티클
 
-## 현재 첫 화면 (`src/hero/`)
+## 이전 첫 화면 구현 참고 (`src/hero/`)
 
-`index.html` 은 `src/hero/main.js` 를 불러온다. 외부 라이브러리 없이 WebGL 로 그리고, 점 위치·색은 매 프레임 CPU 에서 계산한다.
+이전 메인은 `src/hero/main.js` 를 사용했다. 현재 `index.html`은 `src/service-preview/main.js`를 불러온다. 외부 라이브러리 없이 WebGL 로 그리고, 점 위치·색은 매 프레임 CPU 에서 계산한다.
 
-### 흐름
-- **첫 섹션 루프**: 스크롤하지 않으면 구체 → 버스 → 정류장 → 도로 → 구체 … 반복 (장면 완성 후 `CFG.auto` 6초 뒤 다음, 전환 `CFG.burst` 2.6초 "팡" 퍼졌다 모임)
-- **Technology 진입**: 어느 장면에서든(전환 중이어도) 처음 아래로 스크롤하면 첫 문장 ① 이 나타나고, 입자는 터지지 않고 지금 위치에서
-  도로 자리로 부드럽게 이어진다(`CFG.skip` 1.4초, 방향이 같은 자리끼리 짝지음). 도로가 배경으로 유지되고 루프는 멈춤
-- **한 줄씩**: 아래로 ① → ② → ③ 추가 (새 줄만 제자리에서 0 → 100%, 이전 줄은 100% 유지). 위로 ③ → ② → ① 역순으로 하나씩 사라지고,
-  ① 이 사라지는 입력에서 바로 헤더·티커·소개 문구·SCROLL 과 자동 루프가 돌아온다
-- **제스처** (`CFG.gesture`): 휠 한 칸·짧은 스와이프 한 번 = 한 단계. 같은 방향으로 이어지는 관성은 무시,
-  반대 방향 입력은 바로 받음(방향 전환 직후 0.3초간 이전 방향의 작은 관성 꼬리는 무시), 입력이 0.14초 끊기거나 관성 바닥에서 다시 크게 올라오면 새 제스처
-- **로고**: 전환 중에도 바로 구체로, 문구 0 단계
-- **첫 로드**: `index.html` 의 인라인 스크립트·CSS 가 첫 페인트부터 헤더·티커·소개 문구·SCROLL 을 숨긴다(intro-pending).
-  구체 첫 프레임이 그려진 뒤 헤더(0.1s) → 티커 글리치(0.4s) → 소개 제목(1.05s)·본문(1.6s) → SCROLL(2.15s). 고정 타이머로 먼저 드러내지 않음.
-  스크립트·스타일 로드 실패, 이미지·WebGL 실패 시에는 바로 보이게 함
+UI 바로가기 https://all4uiteam.github.io/26_AF_livebusHP/
+
 
 ### 파일
 - `src/hero/sphere.js` — Figma 원화 `src/assets/scenes/sphere-figma.png` 의 점을 그대로 쓰되 구 표면 좌표(경도·위도)로 바꿔 움직인다
@@ -48,3 +38,25 @@ src/assets/*.svg               로고(H1), 티커 아이콘(Icon), SCROLL 화살
 ```
 외부 런타임 라이브러리 없음 (개발 의존성은 vite 하나). 이전 3D 모델 방식(three.js, `src/main.js`·`src/models/` 등)은 정리했고 git 기록에 남아 있다.
 
+
+## 현재 메인 (`/`, `index.html`)
+- 첫 진입 흐름 (이 페이지만): 검정 → 로고 'AILIVEBUS' 한 글자씩(`src/service-preview/entry.js`) → 구(기존 메인의 `src/hero/sphere.js` 를 읽기 전용으로 재사용) → 스크롤 단계. 로고 인트로는 로드당 한 번.
+- 스크롤 단계 (자동 전환 없음, 제스처 한 번 = 서비스 하나, 위로는 역순): 구 → LIVEBUS → BMS → BIT → BIS(마지막, 더 내려가지 않음). 서비스에 들어오면 설명이 한 글자씩 저절로 나타남(투명도만, 글자당 40ms·0.3초 페이드). 구를 떠날 때 티커가 '찌직' 하고 사라지고, 돌아오면 다시 등장. 이 페이지에서는 Core Technology(도로) 마무리 화면을 뺐다.
+- 입자 표현: 점마다 깊이(0 먼 곳~1 가까운 곳, 위치로 추정)를 두어 크기·밝기·선명도·마우스 시차가 조금씩 다름. 중심은 작고 선명한 가우시안, 밝은 점만 옅은 빛 번짐. `?fx=old` 로 개선 전 표현과 비교. 모바일(폭 700px 이하)은 입자 72%만 계산·표시
+- 장면 점 샘플링(tools/build_scenes.py): 무대 해상도에서 저불일치 디더링(한 px 최대 1점) → 윤곽선이 끊기지 않음. 지운 핀·지명 자리는 비우지 않고 주변 무늬로 메움(heal). 분리 버스 다각형은 5px 넓혀 경계가 잘리지 않게
+- 커서: 청백색 점 + 지연 링(마우스에서만, `?nocursor` 로 끔). LIVEBUS 바퀴: 이동 거리에 비례해 휠 안쪽만 회전
+- 서비스 설명(임시 문구): `src/service-preview/copy.js`. 설명 서체 Freesentation SemiBold(600)는 눈누 jsDelivr CDN(`https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-6SemiBold.woff2`, SIL OFL)으로 `src/service-preview/style.css` 의 @font-face 에서 불러오고, 로드된 뒤 글자 애니메이션 시작. 티커는 Adobe Fonts의 Termina Bold(700)를 공식 임베드 https://use.typekit.net/pjc5yrp.css 로 불러온다
+  - 단계는 `html[data-stage]` = boot·logo·sphere·service. 첫 페인트 숨김은 `index.html` 인라인 CSS. 확인용: `?intro=skip`(구에서 시작), `?scene=0~3`(서비스 장면에서 시작)
+- 진입: `index.html` → `src/service-preview/main.js`. 이전 미리보기를 메인으로 교체했다. 구체 구현 `src/hero/sphere.js`와 관련 에셋은 재사용한다.
+- 장면 순서: LIVEBUS(`libus-1`) → BMS(`bms-2`) → BIT(`bit-3`) → BIS(`bis-4`) → 반복. 전환: 확산 0.4초 → 관성 0.3초 → 재결합 1.3초 (`CFG.burst`)
+- 원본 이미지: `src/service-preview/assets/source/` (런타임에서는 쓰지 않음)
+- 장면 데이터: `src/service-preview/data/` — `tools/build_scenes.py` 로 생성
+  (웹 요소로 바꿀 영역 지우기 `CLEAN`, 피사체 기준 크기·중심 맞춤 `BOX`, 장면별 밝기 맞춤 `LEVEL`, 점 역할 태그 `TAGS`)
+  이미지를 바꾸면 `cd src/service-preview && python3 tools/build_scenes.py` (numpy, Pillow, opencv-python, scipy 필요)
+  - 장면별 설정(지울 영역·태그·분리할 버스 다각형·기준점): `src/service-preview/scenes.config.json`
+  - 크기는 검은 여백이 아니라 피사체 면적 기준으로 맞추고, 점 밝기·밀도는 libus-1 기준으로 맞춘다
+- 시연 데이터·시간표(모든 장면이 같은 값 사용): `src/service-preview/demo.js`
+- 버스 자세(점과 웹 요소가 함께 따름): `src/service-preview/poses.js`
+- 장면 안 정보(버스 번호·도착정보·핀·연결선·정보 카드): `src/service-preview/overlays.js` → `infoLayer.js` 가 글자·핀을 점으로 바꿔 장면과 같은 셰이더로 그림 (HTML 글자 아님). BMS 핀 선택은 `.sp-stage` 의 보이지 않는 단추(마우스·키보드·터치), 읽기 보조 문구는 `.sp-live`. 헤더·소개 글·시연 표기 영역에는 점을 찍지 않음
+- 확인용: `/?scene=0~3` 시작 장면, `&manual` 자동 재생 없이 `window.__sp.step(dt)`
+- `vite.config.js`는 `index.html` 한 페이지를 빌드한다. 별도 `service-preview.html`은 제거했다.

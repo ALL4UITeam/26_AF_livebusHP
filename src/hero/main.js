@@ -45,7 +45,7 @@ const CFG = {
   skip: 1.4, // 스크롤로 Technology 에 들어갈 때 도로로 이어지는 시간 (초) — 터지는 효과 없이 부드럽게
   core: 2.3, glow: 9.0, glowAlpha: 0.1, haze: 0.8,
   // 도로: 완성 후 hold 초 동안은 정지 화면 → 먼 커브에서 소수의 밝은 입자가 나타나 S자 도로를 따라 다가옴
-  road: { hold: 1.4, ramp: 2.5, travelers: 12, trail: 3, spawnEvery: 0.55, durMin: 4.2, durMax: 5.4, accel: 1.7, dimWithText: 0.4 },
+  road: { hold: 1.4, ramp: 2.5, travelers: 20, trail: 3, spawnEvery: 0.3, durMin: 3.5, durMax: 4.5, accel: 1.7, dimWithText: 0.4 }, // 이동 20%↑(4.2~5.4→3.5~4.5초), 동시 약 1.5배
   // 스크롤 한 번 = 한 단계 (아래 wheel 처리 참고). gap: 입력이 이만큼 끊기면 새 제스처, kick·rise: 관성 중 다시 크게 튀면 새 제스처
   gesture: { threshold: 30, gap: 140, kick: 30, rise: 2.2, flip: 300 },
   cursor: { yaw: 0.28, pitch: 0.18, omega: 3.0, r: 85, push: 5.0, spring: 0.07, damping: 0.8, maxOff: 34 },
@@ -207,6 +207,7 @@ const mount = document.getElementById('app');
   const busy = () => clock - tStart < trDur();
   /** force: 전환 중이어도 지금 보이는 위치에서 바로 출발 (스크롤로 Technology 진입) */
   function go(i, force = false) {
+    const t0 = performance.now();
     i = (i + SCENES.length) % SCENES.length;
     if (i === cur) return; // 이미 그 장면이거나 그 장면으로 가는 중
     if (!force && busy()) return;
@@ -214,9 +215,7 @@ const mount = document.getElementById('app');
     from = cur; cur = i; tStart = clock;
     style = reduce ? 'fade' : force ? 'skip' : 'burst';
     // 출발 상태 저장 + 튀어나갈 방향 (출발 장면의 중심에서 바깥으로, 바깥 점일수록 멀리)
-    const A = scenes[from];
-    let cx = sCX, cy = sCY, R = sR;
-    if (!isSphere(from)) { const b = dots[from - 1].box; cx = b.cx; cy = b.cy; R = Math.max(b.w, b.h) / 2; }
+    const { cx, cy, R } = sceneFrame(from);
     for (let i2 = 0; i2 < N; i2++) {
       const x = pos[i2 * 2], y = pos[i2 * 2 + 1];
       ax[i2 * 2] = x; ax[i2 * 2 + 1] = y;
@@ -227,8 +226,13 @@ const mount = document.getElementById('app');
       const m = R * (CFG.burst.inner + CFG.burst.outer * Math.pow(rr, 1.6) * (0.6 + 0.6 * rand()));
       bx[i2] = Math.cos(a) * m; by[i2] = Math.sin(a) * m;
     }
-    void A;
-    if ((style === 'burst' || style === 'skip') && !isSphere(cur)) matchTargets(cx, cy, R); // 방향이 같은 자리끼리 짝지어 엉키지 않게
+    // 방향이 같은 자리끼리 짝지어 엉키지 않게. 자동 전환이면 직전 프레임에서 미리 계산해 둔 짝을 그대로 씀
+    if ((style === 'burst' || style === 'skip') && !isSphere(cur)) {
+      if (!(prep.ready && prep.from === from && prep.to === cur && clock - prep.at < 1)) computeMap(cur, ax, cx, cy, R);
+      applyMap(cur);
+    }
+    prep.ready = false;
+    goMs = performance.now() - t0; // 확인용: 전환 시작 프레임에 든 계산 시간
     label();
   }
 
@@ -237,24 +241,64 @@ const mount = document.getElementById('app');
    * 각 그룹 안에서는 화면상 방향(각도)·거리 순으로 맞춰서, 왼쪽 위 점은 왼쪽 위로 가게 한다.
    * → 무작위 짝일 때 생기는 '뭉개진 구름' 없이 튀었다가 곧바로 윤곽이 잡힌다. (다음 장면 배열을 재배치)
    */
-  function matchTargets(cx, cy, R) {
-    const B = scenes[cur];
+  // 자동 전환 직전에 짝을 미리 계산해 두는 상태
+  const prep = { ready: false, from: -1, to: -1, at: -1e9 };
+  let goMs = 0;
+  /**
+   * 짝 맞추기는 전환 시작 프레임에 실행되므로 정렬 대신 버킷(계수) 정렬로 O(N) 처리하고,
+   * 작업 버퍼는 한 번만 만들어 둔다 (전환 순간 메모리 할당·비교 정렬로 화면이 멈추지 않게).
+   */
+  const MB = 4800; // 방향 48칸 × 거리 100칸
+  const MT = { bkey: new Uint16Array(N), order: new Uint32Array(N), cnt: new Uint32Array(Math.max(MB, 1024) + 1),
+    src: new Uint32Array(N), dst: new Uint32Array(N), dstSorted: new Uint32Array(N), tmp: new Uint32Array(N), map: new Int32Array(N),
+    nxy: new Float32Array(N * 2), ncol: new Float32Array(N * 3), vis: new Uint8Array(N) };
+  const angBin = (dx, dy) => Math.min(47, Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * 48)) * 100 + Math.min(99, Math.floor(Math.hypot(dx, dy) * 40));
+  /** list[0..n) 를 MT.bkey 값(0..nb) 오름차순으로 정렬해 out 에 */
+  function bucketSort(list, n, nb, out) {
+    const c = MT.cnt; c.fill(0, 0, nb + 1);
+    for (let k = 0; k < n; k++) c[MT.bkey[list[k]] + 1]++;
+    for (let b = 0; b < nb; b++) c[b + 1] += c[b];
+    for (let k = 0; k < n; k++) out[c[MT.bkey[list[k]]]++] = list[k];
+  }
+  /** 장면의 중심·반경 (전환 때 튀어나가는 방향과 짝 맞추기 기준) */
+  function sceneFrame(k) {
+    if (isSphere(k)) return { cx: sCX, cy: sCY, R: sR };
+    const b = dots[k - 1].box; return { cx: b.cx, cy: b.cy, R: Math.max(b.w, b.h) / 2 };
+  }
+  /** 지금 화면(srcXY·col) → 장면 t 의 자리 짝을 MT.map 에 계산 */
+  function computeMap(t, srcXY, cx, cy, R) {
+    const B = scenes[t], cur = t;
     const bb = cur === 0 ? { cx: sCX, cy: sCY, w: sR * 2, h: sR * 2 } : dots[cur - 1].box;
-    const tb = (j) => Math.max(B.col[j * 3], B.col[j * 3 + 1], B.col[j * 3 + 2]);
-    const vis = [], hid = [];
-    for (let i = 0; i < N; i++) (Math.max(col[i * 3], col[i * 3 + 1], col[i * 3 + 2]) > 0.02 ? vis : hid).push(i);
-    const tgt = Array.from({ length: N }, (_, j) => j).sort((a, b) => tb(b) - tb(a));
-    const tv = tgt.slice(0, vis.length), th = tgt.slice(vis.length);
-    const keyA = (i) => { const dx = (ax[i * 2] - cx) / R, dy = (ax[i * 2 + 1] - cy) / R; return Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * 48) * 10 + Math.min(9.9, Math.hypot(dx, dy) * 4); };
-    const keyB = (j) => { const dx = (B.xy[j * 2] - bb.cx) / (bb.w / 2), dy = (B.xy[j * 2 + 1] - bb.cy) / (bb.h / 2); return Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * 48) * 10 + Math.min(9.9, Math.hypot(dx, dy) * 4); };
-    const map = new Int32Array(N);
-    for (const [src, dst] of [[vis, tv], [hid, th]]) {
-      const a = src.map((i) => [keyA(i), i]).sort((p, q2) => p[0] - q2[0]);
-      const b = dst.map((j) => [keyB(j), j]).sort((p, q2) => p[0] - q2[0]);
-      for (let k = 0; k < a.length; k++) map[a[k][1]] = b[k][1];
+    // 1) 다음 장면 자리를 밝기 내림차순으로 (1024단계)
+    for (let j = 0; j < N; j++) { MT.order[j] = j; MT.bkey[j] = 1023 - Math.min(1023, Math.floor(Math.max(B.col[j * 3], B.col[j * 3 + 1], B.col[j * 3 + 2]) * 1023)); }
+    bucketSort(MT.order, N, 1024, MT.tmp);
+    const byBright = MT.tmp; // 정렬 결과 (밝은 자리부터)
+    // 2) 지금 보이는 점 / 숨은 점
+    let nVis = 0;
+    for (let i = 0; i < N; i++) { const v = Math.max(col[i * 3], col[i * 3 + 1], col[i * 3 + 2]) > 0.02; MT.vis[i] = v ? 1 : 0; if (v) nVis++; }
+    // 3) 보이는 점 ↔ 밝은 자리, 숨은 점 ↔ 흐린 자리. 각 그룹 안에서 화면 방향·거리 순으로 맞춤
+    const map = MT.map, A = MT.order, Bs = MT.dst, out = MT.src;
+    for (const vis of [1, 0]) {
+      // 출발 쪽 (지금 화면 위치 기준)
+      let a = 0;
+      for (let i = 0; i < N; i++) if (MT.vis[i] === vis) { A[a++] = i; MT.bkey[i] = angBin((srcXY[i * 2] - cx) / R, (srcXY[i * 2 + 1] - cy) / R); }
+      bucketSort(A, a, MB, out);
+      // 도착 쪽 (다음 장면 자리 기준)
+      const lo = vis ? 0 : nVis, hi = vis ? nVis : N;
+      let b = 0;
+      for (let k = lo; k < hi; k++) Bs[b++] = byBright[k];
+      // bkey 를 도착 자리 키로 (출발 키와 인덱스 공간이 같으므로 출발 정렬이 끝난 뒤 덮어씀)
+      for (let k = 0; k < b; k++) { const j = Bs[k]; MT.bkey[j] = angBin((B.xy[j * 2] - bb.cx) / (bb.w / 2), (B.xy[j * 2 + 1] - bb.cy) / (bb.h / 2)); }
+      const outB = MT.dstSorted;
+      bucketSort(Bs, b, MB, outB);
+      for (let k = 0; k < a; k++) map[out[k]] = outB[k];
     }
-    if (cur === 0) return; // 구체는 위치가 계산되므로 재배치하지 않음
-    const nxy = new Float32Array(N * 2), ncol = new Float32Array(N * 3);
+  }
+  /** MT.map 대로 장면 t 의 자리 배열을 재배치 (구체는 위치를 매 프레임 계산하므로 제외) */
+  function applyMap(t) {
+    if (t === 0) return;
+    const B = scenes[t], map = MT.map;
+    const nxy = MT.nxy, ncol = MT.ncol;
     for (let i = 0; i < N; i++) { const j = map[i]; nxy[i * 2] = B.xy[j * 2]; nxy[i * 2 + 1] = B.xy[j * 2 + 1]; ncol[i * 3] = B.col[j * 3]; ncol[i * 3 + 1] = B.col[j * 3 + 1]; ncol[i * 3 + 2] = B.col[j * 3 + 2]; }
     B.xy.set(nxy); B.col.set(ncol);
   }
@@ -391,6 +435,11 @@ const mount = document.getElementById('app');
     if (!busy()) {
       if (idleSince < tStart + trDur()) idleSince = clock;
       if (cur === ROAD && roadAt < 0) enterRoad();
+      const nextK = (cur + 1) % SCENES.length;
+      // 자동 전환 0.25초 전, 전환과 무관한 프레임에서 짝 맞추기를 미리 해 둠 → 전환 시작 프레임이 가벼워짐
+      if (!CAPTURE && !textStep && !reduce && !prep.ready && !isSphere(nextK) && clock - idleSince > CFG.auto - 0.25) {
+        const f = sceneFrame(cur); computeMap(nextK, pos, f.cx, f.cy, f.R); Object.assign(prep, { ready: true, from: cur, to: nextK, at: clock });
+      }
       if (!CAPTURE && !textStep && clock - idleSince > CFG.auto) go(cur + 1);
     }
     updateRunners();
@@ -500,6 +549,8 @@ const mount = document.getElementById('app');
 
   // 첫 프레임 위치 확정 (전환 출발점이 비지 않게)
   step(0);
+  // 짝 맞추기 코드를 로드 시점에 한 번씩 돌려 둔다 (첫 전환에서 처음 실행되며 생기는 지연 방지, 결과는 쓰지 않음)
+  for (let k = 1; k < SCENES.length; k++) { const f = sceneFrame(0); computeMap(k, pos, f.cx, f.cy, f.R); }
   /**
    * 첫 로드 한 번: index.html 이 첫 페인트부터 UI 를 숨겨 둔다(intro-pending).
    * 구체 첫 프레임이 화면에 그려진 다음 프레임에 intro-play 를 붙여 헤더 → 티커 글리치 → 소개 문구 → SCROLL 순으로 보여 주고,
@@ -533,7 +584,7 @@ const mount = document.getElementById('app');
     });
   }
 
-  window.__livebusHero = { go, step, advance, get textStep() { return textStep; }, get runners() { return runners.filter((r) => r.on).length; }, setPointer, parted: () => { let n = 0; for (let i = 0; i < N; i++) if (Math.hypot(off[i * 2], off[i * 2 + 1]) > 4) n++; return n; }, get scene() { return SCENES[cur].name; }, get busy() { return busy(); }, N };
+  window.__livebusHero = { get goMs() { return goMs; }, go, step, advance, get textStep() { return textStep; }, get runners() { return runners.filter((r) => r.on).length; }, setPointer, parted: () => { let n = 0; for (let i = 0; i < N; i++) if (Math.hypot(off[i * 2], off[i * 2 + 1]) > 4) n++; return n; }, get scene() { return SCENES[cur].name; }, get busy() { return busy(); }, N };
   if (!MANUAL) {
     let last = performance.now(), frames = 0;
     const frame = (now) => {

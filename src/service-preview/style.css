@@ -1,0 +1,173 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
+}
+#app {
+  position: fixed;
+  inset: 0;
+}
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.portal { color:white; font-family:Freesentation,"Malgun Gothic",sans-serif; position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+.portal button { background:none; border:0; padding:0; color:inherit; cursor:pointer; pointer-events:auto; }
+.portal-header { height:6.48%; padding:0 6.25%; display:flex; align-items:center; justify-content:space-between; }
+.brand img { display:block; width:clamp(85px,6.1vw,117px); }
+.portal nav { display:flex; gap:3.125vw; font:500 clamp(11px,.84vw,16px)/1.4 "DM Sans",Arial,sans-serif; }
+.headline { position:absolute; top:37.13%; left:-5vw; font:700 7.3vw/1.3 "termina",Arial,sans-serif; letter-spacing:-.073vw; }
+.ticker { display:flex; width:max-content; animation:marquee 32s linear infinite; }
+.ticker span { display:flex; gap:1.56vw; padding-right:1.56vw; align-items:center; white-space:nowrap; }
+.ticker img { width:7.81vw; }
+@keyframes marquee { to { transform:translateX(-50%); } }
+.scroll-next { position:absolute; left:50%; bottom:2.75%; transform:translateX(-50%); display:grid; justify-items:center; font:700 clamp(11px,.84vw,16px)/1.3 Paperlogy,Arial,sans-serif; opacity:.6; }
+.scroll-next img { width:clamp(28px,2.6vw,50px); }
+.portal > * { transition:opacity .6s ease, visibility 0s linear 0s; }
+
+.ticker-slice { position:absolute; top:0; left:0; pointer-events:none; color:#e9fbff; text-shadow:-2px 0 rgba(56,214,255,.75); opacity:0; }
+.ticker-slice-a { animation:marquee 32s linear infinite, ticker-slice-a .55s steps(1,end) .4s both; }
+.ticker-slice-b { animation:marquee 32s linear infinite, ticker-slice-b .55s steps(1,end) .4s both; }
+@keyframes ticker-flicker { 0% { opacity:0; } 8% { opacity:.9; } 16% { opacity:.35; } 26%,100% { opacity:1; } }
+@keyframes ticker-slice-a {
+  0% { opacity:0; }
+  10% { opacity:1; clip-path:inset(30% 0 57%); translate:-14px 0; }
+  28% { opacity:1; clip-path:inset(30% 0 57%); translate:7px 0; }
+  44% { opacity:1; clip-path:inset(64% 0 25%); translate:-5px 0; }
+  58%,100% { opacity:0; translate:0 0; }
+}
+@keyframes ticker-slice-b {
+  0%,14% { opacity:0; }
+  18% { opacity:1; clip-path:inset(56% 0 32%); translate:12px 0; }
+  34% { opacity:1; clip-path:inset(56% 0 32%); translate:-4px 0; }
+  48% { opacity:1; clip-path:inset(16% 0 72%); translate:3px 0; }
+  62%,100% { opacity:0; translate:0 0; }
+}
+@keyframes intro-scroll { from { opacity:0; } to { opacity:.6; } }
+@keyframes intro-fade { from { opacity:0; } to { opacity:1; } }
+@media (max-width:700px) {
+  .portal-header { height:60px; padding:0 5%; }
+  .portal nav { gap:2vw; font-size:10px; }
+  .headline { top:43%; font-size:11vw; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .ticker { animation:none; }
+}
+
+/* ── 서비스 시연 시안 전용 ─────────────────────────────────────────── */
+/* 장면 안 정보(글자·핀·선)는 캔버스에 점으로 그림 (infoLayer.js). 여기는 상호작용·읽기 보조만 */
+.sp-stage { position:absolute; left:0; top:0; width:1600px; height:900px; transform-origin:0 0; pointer-events:none; } /* .portal 안: 헤더·소개 글 아래. 소개 글 영역은 clip-path 로 제외 */
+.sp-pinbtn { position:absolute; left:0; top:0; width:36px; height:50px; border-radius:18px; pointer-events:auto; cursor:pointer; background:none; border:0; padding:0; } /* BMS 핀 선택: 보이지 않지만 마우스·키보드·터치 가능 */
+.sp-pinbtn:focus-visible { outline:1.5px dashed rgba(170,240,255,.8); outline-offset:2px; }
+.sp-live { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; margin:-1px; }
+.sp-demo { position:absolute; right:6.25%; bottom:3.2%; margin:0; padding:5px 10px; border:1px solid rgba(127,230,255,.4); border-radius:999px; font:500 clamp(10px,.7vw,13px)/1 "Malgun Gothic",sans-serif; color:#bfefff; letter-spacing:-.02em; }
+@media (max-width:700px) { .sp-demo { right:5%; bottom:auto; top:66px; } }
+
+/* ── 첫 진입 흐름: 검정 → 로고 한 글자씩 → 구 → (스크롤) 서비스 ─────────────
+   단계는 html[data-stage] (boot·logo·sphere·service). 첫 페인트용 숨김 규칙은 index.html 인라인 CSS 에 있음.
+   로고는 Figma(첫 진입·구 화면 모두 116.8×32, 흰색): 처음엔 화면 정중앙, 구 화면에서는 헤더 가운데(위 20px)로 올라감 */
+.portal-header { justify-content:center; } /* Figma 구 화면: 헤더에는 가운데 로고만 */
+.portal-header nav { display:none; }
+.brand { display:block; transform-origin:50% 50%; transition:transform .74s cubic-bezier(.45,0,.15,1); } /* 큰 로고 → 헤더: 부드럽게 출발해 도착할수록 천천히 (축소·이동 함께) */
+.sp-logo { display:block; width:clamp(85px,6.1vw,117px); height:auto; overflow:visible; }
+.sp-glyph { transition:opacity .2s ease-out; }
+#app { transition:opacity .75s ease-out .3s; } /* 로고 이동 후반부(0.3초~)부터 구가 서서히 드러남 */
+html[data-stage="sphere"] .sp-demo { opacity:0; visibility:hidden; } /* 시연 표기는 서비스 화면에서만 */
+/* 구 화면에 처음 들어올 때 한 번: 티커 '지지직' → SCROLL (main.js 가 sp-entering 을 붙였다 뗌) */
+.sp-entering .headline { animation:ticker-flicker .55s steps(1,end) .7s both; }
+.sp-entering .ticker-slice-a { animation:marquee 32s linear infinite, ticker-slice-a .55s steps(1,end) .7s both; }
+.sp-entering .ticker-slice-b { animation:marquee 32s linear infinite, ticker-slice-b .55s steps(1,end) .7s both; }
+.sp-entering .scroll-next { animation:intro-scroll .6s ease 1.05s both; }
+@media (prefers-reduced-motion:reduce) {
+  .brand { transition:none; }
+  .sp-glyph { transition-duration:.25s; }
+  #app { transition:opacity .4s ease; }
+  .sp-entering .headline, .sp-entering .scroll-next { animation-duration:.3s; animation-delay:.1s; animation-timing-function:ease; }
+}
+
+/* ── 구 화면 티커: 나갈 때 '찌직' (등장과 같은 색·조각, 글자 영역만, 0.4초) / 돌아올 때 등장 효과 ── */
+html[data-stage="service"] .headline { opacity:0; visibility:hidden; transition:opacity 0s, visibility 0s linear .45s; } /* 서비스 위에 티커 잔상 없음 */
+.sp-head-out .headline { animation:ticker-out .4s steps(1,end) both; }
+.sp-head-out .ticker-slice-a { animation:marquee 32s linear infinite, ticker-slice-a-out .4s steps(1,end) both; }
+.sp-head-out .ticker-slice-b { animation:marquee 32s linear infinite, ticker-slice-b-out .4s steps(1,end) both; }
+.sp-head-in .headline { animation:ticker-flicker .55s steps(1,end) .3s both; }
+.sp-head-in .ticker-slice-a { animation:marquee 32s linear infinite, ticker-slice-a .55s steps(1,end) .3s both; }
+.sp-head-in .ticker-slice-b { animation:marquee 32s linear infinite, ticker-slice-b .55s steps(1,end) .3s both; }
+@keyframes ticker-out {
+  0% { opacity:1; translate:0 0; }
+  14% { opacity:.4; translate:-6px 0; }
+  28% { opacity:.9; translate:4px 0; }
+  44% { opacity:.25; translate:-3px 0; }
+  60% { opacity:.6; translate:2px 0; }
+  76%,100% { opacity:0; translate:0 0; }
+}
+@keyframes ticker-slice-a-out {
+  0% { opacity:1; clip-path:inset(30% 0 57%); translate:-14px 0; }
+  25% { opacity:1; clip-path:inset(30% 0 57%); translate:9px 0; }
+  50% { opacity:1; clip-path:inset(64% 0 25%); translate:-6px 0; }
+  70%,100% { opacity:0; translate:0 0; }
+}
+@keyframes ticker-slice-b-out {
+  0%,10% { opacity:0; }
+  15% { opacity:1; clip-path:inset(56% 0 32%); translate:12px 0; }
+  38% { opacity:1; clip-path:inset(16% 0 72%); translate:-5px 0; }
+  62%,100% { opacity:0; translate:0 0; }
+}
+
+/* ── 서체: Freesentation (SIL OFL 1.1, 눈누 Project Noonnu 웹폰트 CDN) ──
+   설명(.sp-copy)은 제목·본문 모두 600 이라 SemiBold 한 파일만 씀. 설치돼 있으면 그 서체를 먼저 쓰고, 없으면 CDN 파일.
+   'Freesentation' 이름으로 등록 → .portal 의 font-family:Freesentation 과 .sp-copy 선언이 그대로 이 파일을 씀 (이 페이지 CSS 에만 있음) */
+@font-face {
+  font-family:'Freesentation';
+  src:local('Freesentation SemiBold'), local('Freesentation-6SemiBold'),
+      url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-6SemiBold.woff2') format('woff2');
+  font-weight:600; font-style:normal; font-display:block;
+}
+/* headline: index.html의 Adobe Fonts 공식 임베드에서 Termina Bold 700 로드. */
+
+/* ── 서비스 설명 (copy.js): 서비스에 들어오면 제목 → 설명이 한 글자씩 저절로 (투명도만, 이동·확대 없음) ──
+   ① 이미지가 모이기 시작할 때(--in, 0.7초) 문구 전체가 0.25초 동안 0 → 0.1 (부모 .sp-copy 의 opacity 0 → 1 × 글자 0.1)
+   ② 그 마지막 50ms 부터(--d 첫 값 0.9초) 읽는 순서대로 글자마다 0.1 → 1 (글자당 15~25ms, 페이드 0.19초).
+   부모는 0.95초에 1 이 되어 끝나므로 완성된 글자가 부모 opacity 에 눌려 흐려지지 않음. 비활성 섹션은 부모 0 + visibility:hidden 즉시. */
+.sp-copies { position:absolute; inset:0; pointer-events:none; }
+.sp-copy { opacity:0; position:absolute; left:6.25%; top:50%; transform:translateY(-50%); color:#fff; width:max-content; font-family:Freesentation,"Malgun Gothic",sans-serif; }
+.sp-copy-title { margin:0 0 .7em; font-size:clamp(22px,2.5vw,48px); line-height:1.35; font-weight:600; letter-spacing:-.02em; white-space:nowrap; }
+.sp-copy-body { margin:0; font-size:clamp(15px,1.5vw,29px); line-height:1.6; font-weight:600; }
+.sp-line { display:block; white-space:nowrap; }
+.sp-ch { opacity:0; transition:opacity .2s ease; } /* 비활성: 완전히 숨김 */
+.sp-copy.is-active .sp-ch { opacity:.1; } /* 활성: 글자는 0.1 에서 대기 (글자 span 은 inline 그대로 → 서체·굵기·자간·행간을 부모에서 물려받음) */
+.sp-copy.is-play { opacity:1; transition:opacity .25s ease-out var(--in, 700ms); } /* 문구 전체 0 → 0.1 로 서서히 */
+.sp-copy.is-play .sp-ch { opacity:1; transition:opacity .19s cubic-bezier(.33,0,.2,1) var(--d, 0ms); }
+.sp-copy.is-reset .sp-ch { transition:none !important; opacity:.1; } /* 재진입: 0.1 에서 다시 시작 */
+.sp-copy:not(.is-active) { visibility:hidden; opacity:0; transition:none; } /* 떠나는 섹션 문구는 바로 숨김 → 새 섹션의 0.1 문구와 겹치지 않음 */
+.sp-copy:not(.is-active) .sp-ch { transition:none; }
+.sp-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; margin:-1px; }
+.headline { font-family:"termina",Arial,sans-serif; }
+/* 서체가 준비되기 전에는 티커·설명을 보이지 않게 (다른 서체로 잠깐 나타났다 바뀌지 않게) */
+html:not(.sp-fonts) .headline, html:not(.sp-fonts) .sp-copies { visibility:hidden; }
+/* 마지막 서비스(BIS): 더 내려갈 곳이 없으므로 SCROLL 안내 숨김 */
+html[data-last] .scroll-next { opacity:0; visibility:hidden; transition:opacity .4s ease, visibility 0s linear .4s; }
+@media (max-width:700px), (orientation:portrait) {
+  .sp-copy { left:5%; top:auto; bottom:15%; transform:none; }
+  .sp-copy-title { font-size:clamp(20px,5.6vw,30px); margin-bottom:.5em; }
+  .sp-copy-body { font-size:clamp(14px,3.9vw,20px); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sp-head-out .headline, .sp-head-in .headline { animation-duration:.2s; animation-delay:0s; }
+  .sp-copy.is-active, .sp-copy.is-active .sp-ch, .sp-copy.is-play .sp-ch { opacity:1; transition:none; } /* 동작 줄이기: 활성 문구를 바로 1 로 */
+}
+
+
+/* ── 커서 (마우스·트랙패드에서만, main.js 가 준비되면 html.sp-cursor-on) ── 작은 청백색 점 + 얇은 청색 링 */
+.sp-cursor { position:fixed; left:0; top:0; z-index:100; pointer-events:none; opacity:0; transition:opacity .25s ease; }
+html.sp-cursor-on .sp-cursor { opacity:1; }
+.sp-cursor.is-out { opacity:0 !important; }
+.sp-cursor-dot, .sp-cursor-ring { position:absolute; left:0; top:0; border-radius:50%; will-change:transform; }
+.sp-cursor-dot { width:5px; height:5px; margin:-2.5px 0 0 -2.5px; background:#e9fbff; box-shadow:0 0 4px rgba(140,225,255,.65); }
+.sp-cursor-ring::after { content:''; position:absolute; left:-13px; top:-13px; width:26px; height:26px; border-radius:50%; box-sizing:border-box; border:1px solid rgba(110,205,255,.42); transition:transform .25s ease, border-color .25s ease; }
+.sp-cursor.is-hover .sp-cursor-ring::after { transform:scale(1.42); border-color:rgba(175,238,255,.85); }
+@media (hover:hover) and (pointer:fine) { html.sp-cursor-on, html.sp-cursor-on * { cursor:none !important; } }
